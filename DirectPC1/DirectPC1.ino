@@ -55,7 +55,7 @@ unsigned int frameNo = 0, ackNo = 0;
 int countPic = 0;
 String pictureStore[3];
 
-unsigned long long startTime = 0, timeOut = 10000;
+unsigned long long startTime = 999999999, timeOut = 10000;
 uint16_t outFrame = 0;
 int prev = 0;
 int count = 0;
@@ -74,14 +74,36 @@ const float frequency = 102.4; //Enter your own Frequency
 
 uint32_t baud_begin = 0;
 
+String quadrant1[4];
+int qIndex1 = 0;
+String quadrant2[4];
+int qIndex2 = 0;
+String quadrant3[4];
+int qIndex3 = 0;
+String quadrant4[4];
+int qIndex4;
+String X[4];
+int xIndex;
+String Y[4];
+int yIndex;
+
+const int ELEMENT_COUNT_MAX = 4;
+int storage_array1[ELEMENT_COUNT_MAX];
+int storage_array2[ELEMENT_COUNT_MAX];
+int storage_array3[ELEMENT_COUNT_MAX];
+int storage_array4[ELEMENT_COUNT_MAX];
+Vector<int> q1(storage_array1);
+Vector<int> q2(storage_array2);
+Vector<int> q3(storage_array3);
+Vector<int> q4(storage_array4);
+
+
 
 void setup() {
   Serial.begin(115200);
   dac.begin(0x60);
   Wire.begin();
-  
  
-  
   for (int i = 0; i < 21; i++)
   {
     test[i] = 0;
@@ -108,18 +130,6 @@ void setup() {
   Serial.flush();
 //  delay(2000);
 }
-/*
-    Frame
-        - type: U-frame, S-Frame, I-frame
-        - frameSize: 7bits
-
-    U-Frame = [   00    |  00000 ]
-                   Type    cmd
-    S-Frame = [   01    |  0000 | 0 ]
-                 Type      cmd  ackNo
-    I-Frame = [   11    |  0  | 0000 ]
-                 Type    FrameNo  Data
-*/
 
 
 void sendFrame(bool isFrame)
@@ -127,6 +137,7 @@ void sendFrame(bool isFrame)
   if (isFrame)
   {
     startTimer = true;
+    startTime = millis();
   }
   else
   {
@@ -170,12 +181,7 @@ void sendFSK(int freq, int in_delay) //Config later
     case 500: //500
       cyc = 5;
       break;
-    //        case 800:
-    //            cyc = 8;
-    //            break;
-    //        case 1100:
-    //            cyc = 11;
-    //            break;
+
     case 1400: //1400
       cyc = 14;
       break;
@@ -349,7 +355,7 @@ void checkFrame()
         }
         else if (mode == ANALYSIS_MODE)
         {
-          
+          Serial.println("/*--------------------- Analysis mode ---------------------*/");
         }
       }
 
@@ -365,22 +371,82 @@ void checkFrame()
     else if (inFrameType == IFrame) //I-Frame
     {
       sendFrame(false);
-      inFrame &= 0x3f000;
-      inFrame /= 4096;    
+      if (mode == DISPLAY_MODE)
+      {
+        inFrame &= 0x3f000;
+        inFrame /= 4096; 
+      } 
+      else if (mode == ANALYSIS_MODE)
+      {
+        inFrame &= 0xfffe0;
+        inFrame /= 64;
+        inFrame &= 0x3ff;
+      }
       
+         
       switch (mode) 
       {
           case DISPLAY_MODE:
             pictureStore[pictureIndex] = String(inFrame,BIN);
             pictureIndex++;
             break;
+          case ANALYSIS_MODE:
+          String readyInFrame = String(inFrame,BIN);
+          
+          Serial.println(readyInFrame);
+          addZeroTo12Bit(&readyInFrame);
+          
+          
+          int number = convertToInt(readyInFrame);
+          if (qIndex1 < 4)
+          {
+            quadrant1[qIndex1] = number;
+            qIndex1++;
+          }
+          else if (qIndex2 < 4)
+          {
+            quadrant2[qIndex2] = number;
+            qIndex2++;
+          }
+          else if (qIndex3 < 4)
+          {
+            quadrant3[qIndex3] = number;
+            qIndex3++;
+          }
+          else if (qIndex4 < 4)
+          {
+            quadrant4[qIndex4] = number;
+            qIndex4++;
+          }
+          else if (xIndex < 4)
+          {
+            X[xIndex] = number;
+            xIndex++;
+          }
+          else if (yIndex < 4)
+          {
+            Y[yIndex] = number;
+            yIndex++;
+          }
+          break;
+            
       }
-      if (pictureIndex == 3) 
+      if (pictureIndex == 3 and mode == DISPLAY_MODE) 
       {
         for (int i = 0 ; i < pictureIndex;i++) addZero(&pictureStore[i]);
         displayValue();
       }
       
+      if (yIndex == 4 and mode == ANALYSIS_MODE)
+      {
+        for (int i = 0; i < qIndex1;i++)
+        {
+          Serial.print("Quadrant : ");
+          Serial.println(quadrant1[i]);  
+        }
+        displayPixel();
+      }
+
 //      int tmpAck = (inFrame >> 15) & 1;
 //      if (tmpAck == ackNo)
 //      {
@@ -454,7 +520,16 @@ void displayValue()
   canSend = true;
   
 }
-
+void addZeroTo12Bit(String * str)
+{
+  int sizeStr = str->length();
+  String preset = "";
+  for (int i = 0; i < 12 - sizeStr; i++)
+  {
+    preset += "0";
+  }
+  *str = preset + *str;
+}
 void addZero(String* str)
 {
   int sizeStr = str->length();
@@ -481,8 +556,125 @@ void clearInFrame()
     test[i] = 0;
   }
 }
+int convertToInt(String str)
+{
+    String firstPart = "";
+    String secPart = "";
+    String thirdPart = "";
+    Serial.print("str : ");
+    Serial.println(str);
+    for (int a = 0; a < 4; a++)
+    {
+      firstPart += str[a];
+    }
+    for (int b = 4; b < 8; b++)
+    {
+      secPart += str[b];
+    }
+    for (int c = 8; c < 12; c++)
+    {
+      thirdPart += str[c];
+    }
+    Serial.print("First part : ");
+    Serial.println(firstPart);
+    Serial.print("Second part : ");
+    Serial.println(secPart);
+    Serial.print("Third part : ");
+    Serial.println(thirdPart);
+    String total = String(strToInt(firstPart)) + String(strToInt(secPart)) + String(strToInt(thirdPart)); 
+    Serial.print("total : ");
+    Serial.println(total);
+    return total.toInt();
+  
+    
+    
+}
 
+int strToInt(String colorCode)
+{
+  int tempData = 0;
 
+  if (colorCode == "0000") tempData = 0;
+
+  else if (colorCode == "0001") tempData = 1;
+
+  else if (colorCode == "0010") tempData = 2;
+
+  else if (colorCode == "0011") tempData = 3;
+
+  else if (colorCode == "0100") tempData = 4;
+
+  else if (colorCode == "0101") tempData = 5;
+
+  else if (colorCode == "0110") tempData = 6;
+
+  else if (colorCode == "0111") tempData = 7;
+
+  else if (colorCode == "1000") tempData = 8;
+
+  else if (colorCode == "1001") tempData = 9;
+
+  else if (colorCode == "1010") tempData = 10;
+
+  else if (colorCode == "1011") tempData = 11;
+
+  else if (colorCode == "1100") tempData = 12;
+
+  else if (colorCode == "1101") tempData = 13;
+
+  else if (colorCode == "1110") tempData = 14;
+
+  else if (colorCode == "1111") tempData = 15;
+
+  return tempData;
+
+}
+void calcXY()
+{
+  for (int i = 0; i < 2;i++)
+  {
+    for (int j = 0;j < 2;j++)
+    {
+      int q1_s[2] = {Y[i].toInt(),X[j].toInt()};
+      int q2_s[2] = {Y[i].toInt(),X[j+2].toInt()};
+      int q3_s[2] = {Y[i+2].toInt(),X[j].toInt()};
+      int q4_s[2] = {Y[i+2].toInt(),X[j+2].toInt()};
+      q1.push_back(q1_s);
+      q2.push_back(q2_s);
+      q3.push_back(q3_s);
+      q4.push_back(q4_s);  
+    }
+  }
+}
+void displayPixel()
+{  
+  calcXY();
+  Serial.println(" ---------- Quadrant 1 ---------- ");
+  formatQ(q1,quadrant1[0], quadrant1[1], quadrant1[2], quadrant1[3]);
+  Serial.println(" ---------- Quadrant 2 ---------- ");
+  formatQ(q2,quadrant1[0], quadrant1[1], quadrant1[2], quadrant1[3]);
+  Serial.println(" ---------- Quadrant 3 ---------- ");
+  formatQ(q3,quadrant1[0], quadrant1[1], quadrant1[2], quadrant1[3]);
+  Serial.println(" ---------- Quadrant 4 ---------- ");
+  formatQ(q4,quadrant1[0], quadrant1[1], quadrant1[2], quadrant1[3]);
+}
+
+void formatQ(Vector<int> qa, String c1, String c2, String c3, String mean)
+{
+  Serial.print("At (");
+  Serial.print(qa[0]);
+  Serial.print(",");
+  Serial.print(qa[1]);
+  Serial.print(") : (");
+  Serial.print(c1);
+  Serial.print(", ");
+  Serial.print(c2);
+  Serial.print(", ");
+  Serial.print(c3);
+  Serial.print(")");
+  Serial.print(" | Mean : ");
+  Serial.println(mean);
+}
 void receiveFrame() {
   int tmp = analogRead(A0);
   //  Serial.println(tmp);
@@ -518,8 +710,6 @@ void receiveFrame() {
       baud_check++;
       if (baud_check == receiveFullFrameSize) // 21 bits
       {
-//                Serial.print("Receive Frame : ");
-//                formatFrame(test);
         for (int i = 0; i < receiveFullFrameSize; i++)
         {
           inFrame <<= 1;
@@ -544,12 +734,11 @@ void receiveFrame() {
 
   if (tmp > r_slope and check_amp) {
     count++;
-    //Serial.println(tmp);
     check_baud = true;
     check_amp = false;
   }
   prev = tmp;
-  //Serial.println(micros() - baud_begin);
+ 
 }
 
 void timer()

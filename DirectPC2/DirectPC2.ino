@@ -10,7 +10,7 @@
 
 #include <Servo.h>
 #include <TEA5767.h>
-#include <Vector.h>
+//#include <Vector.h>
 #define fullFrameSize 21
 
 
@@ -32,7 +32,7 @@
 #define INIT_MODE 0
 #define SPLIT_AXIS 1
 #define PIXEL_MODE 2
-
+#define COMPLETE 99
 
 
 
@@ -55,15 +55,12 @@ unsigned int frameNo = 0, ackNo = 0;
 uint32_t data = 0x0;
 
 int delay0, delay1, delay2, delay3;
-unsigned long long currentTime = 0, startTime = 0, timeOut = 10000;
+unsigned long long currentTime = 0, startTime = 999999999999999, timeOut = 10000;
 unsigned long long sendTime = 0, sendTimeOut = 10000;
 uint32_t outFrame = 0;
 uint16_t inFrame = 0;
 unsigned int baud_count = 0;
 int inFrameType = 0;
-
-
-int queueIndex = 0;
 
 
 int prev = 0;
@@ -80,10 +77,29 @@ const float frequency = 89.6; //Enter your own Frequency // old wave = 89.7
 
 uint32_t baud_begin = 0;
 
-String pictureStore[3] = {"1011L", "1010C", "1001R"};
-int pictureIndex = 0;
+//String pictureStore[3] = {"1011L", "1010C", "1001R"};
+String pictureStore[3] = {"0001L", "1010C", "0011R"};
 //String pictureStore[3];
+int pictureIndex = 0;
+int pixelIndex = 0;
+int quadIndex = 0;
 
+String code = "";
+//Test
+String quadrant1[5] = {"109", "113", "113", "115", "112"};
+String quadrant2[5] = {"113", "107", "115", "111", "111"};
+String quadrant3[5] = {"111", "115", "107", "109", "110"};
+String quadrant4[5] = {"115", "111", "109", "105", "110"};
+String X[4] = {"54", "84", "154", "184"};
+String Y[4] = {"136", "166", "236", "266"};
+int dataArray12Bit[12];
+//Using
+//String quadrant1[5];
+//String quadrant2[5];
+//String quadrant3[5];
+//String quadrant4[5];
+//String X[4];
+//String y[4];
 //Servo setup
 
 int x = 0;
@@ -91,7 +107,7 @@ Servo myservo;
 int num = 40;
 
 uint32_t storage_array[50];
-Vector<uint32_t> vector(storage_array);
+//Vector<uint32_t> vector(storage_array);
 //End
 void setup() {
   Serial.begin(115200);
@@ -103,7 +119,10 @@ void setup() {
     S_DAC[i] = 4095 / 2.0 * (1 + S[i]);
     //    Serial.println(S_DAC[i]);
   }
-
+  for (int i = 0; i < 21; i++)
+  {
+    dataArray12Bit[i] = 0;
+  }
 
   delay0 = (1000000 / f0 - 1000000 / defaultFreq) / N;
   delay1 = (1000000 / f1 - 1000000 / defaultFreq) / N;
@@ -144,6 +163,14 @@ void setup() {
   //    delay(2000);
 }
 
+void clearDataArray12Bit()
+{
+  for (int i = 0; i < 12; i++)
+  {
+    dataArray12Bit[i] = 0;
+  }
+}
+
 void checkFrame()
 {
   if (checkError(inFrame) == false) // No error
@@ -154,7 +181,7 @@ void checkFrame()
       //      type = 'S';
       //      data = 0x1ffffff;
       //      data = 0x1555555;
-      sendFrame(false);
+      sendFrame(false, false);
 
       int cmd = (inFrame >> 5) & B11111;
 
@@ -171,9 +198,6 @@ void checkFrame()
     else if (inFrameType == SFrame)
     {
       uint8_t tmp = (inFrame >> 6) & B1111;
-//      Serial.print("Receive ack Number : ");
-//      Serial.println(tmp, HEX);
-//      Serial.println(tmp, BIN);
       if (tmp == 0x9)
       {
         Serial.println("Received ack.");
@@ -181,16 +205,19 @@ void checkFrame()
         boolFrame = !boolFrame;
         canSend = true;
         if (mode == SPLIT_AXIS) prepareCapture();
+        else if (mode == PIXEL_MODE and pixelIndex < 5) prepareAnalysis();
+        else if (mode == COMPLETE) Serial.println("Terminated.");
       }
     }
 
     else if (inFrameType == IFrame)
     {
-      Serial.print("Received I-Frame : ");
-      Serial.println(inFrame >> 6, BIN);
+
       int cmd = (inFrame >> 6) & B1111;
-      if (cmd == B1111) captureAll();
-//      sendFrame(false);
+      if (cmd == B1111 and mode == INIT_MODE) captureAll();
+      else if (mode == PIXEL_MODE) analysis(cmd);
+
+      //      sendFrame(false);
     }
   }
   else
@@ -199,8 +226,185 @@ void checkFrame()
   }
 }
 
+void analysis(int inCode)
+{
+
+  code = String(inCode, BIN);
+  addZero(&code);
+  Serial.println(" - - Pixel mode - - ");
+  prepareAnalysis();
+  //  Serial.print(code); // วิเคราะห์ข้อมูลของรหัสภาพ
+
+}
+
+void prepareAnalysis()
+{
+  data = 0;
+  if (quadIndex == 0)
+  {
+    sendPixelToPc1(quadrant1, pixelIndex);
+  }
+  else if (quadIndex == 1)
+  {
+    sendPixelToPc1(quadrant2, pixelIndex);
+  }
+  else if (quadIndex == 2)
+  {
+    sendPixelToPc1(quadrant3, pixelIndex);
+  }
+  else if (quadIndex == 3)
+  {
+    sendPixelToPc1(quadrant4, pixelIndex);
+  }
+  else if (quadIndex == 4) // X
+  {
+    sendPixelToPc1(X, pixelIndex);
+  }
+  else if (quadIndex == 5) // Y
+  {
+    sendPixelToPc1(Y, pixelIndex);
+  }
+  
+  pixelIndex++;
+  
+  if (pixelIndex == 5)
+  {
+    if (quadIndex == 4)
+    {
+      Serial.println(" - - Sended X Line - - ");
+
+    }
+    else if (quadIndex == 5)
+    {
+      Serial.println(" - - Sended Y Line - - ");
+    }
+    else
+    {
+      Serial.print(" - - Sended all ");
+      Serial.print(quadIndex + 1);
+      Serial.println(" quadrant data - - ");  
+    }
+    
+    quadIndex++;
+    pixelIndex = 0;
+  }
+}
+int strToInt(String colorCode)
+{
+  int tempData = 0;
+
+  if (colorCode == "0000") tempData = 0;
+
+  else if (colorCode == "0001") tempData = 1;
+
+  else if (colorCode == "0010") tempData = 2;
+
+  else if (colorCode == "0011") tempData = 3;
+
+  else if (colorCode == "0100") tempData = 4;
+
+  else if (colorCode == "0101") tempData = 5;
+
+  else if (colorCode == "0110") tempData = 6;
+
+  else if (colorCode == "0111") tempData = 7;
+
+  else if (colorCode == "1000") tempData = 8;
+
+  else if (colorCode == "1001") tempData = 9;
+
+  else if (colorCode == "1010") tempData = 10;
+
+  else if (colorCode == "1011") tempData = 11;
+
+  else if (colorCode == "1100") tempData = 12;
+
+  else if (colorCode == "1101") tempData = 13;
+
+  else if (colorCode == "1110") tempData = 14;
+
+  else if (colorCode == "1111") tempData = 15;
+
+  return tempData;
+
+}
+
+
+void sendPixelToPc1(String arr[], int index)
+{
+  
+    int i = index;
+    String tempStr = strTo4Bit(arr[i]);
+    //    Serial.println(tempStr);
+    for (int j = 0; j < tempStr.length(); j++)
+    {
+      String firstPart = "";
+      String secPart = "";
+      String thirdPart = "";
+      for (int a = 0; a < 4; a++)
+      {
+        firstPart += tempStr[a];
+      }
+      for (int b = 4; b < 8; b++)
+      {
+        secPart += tempStr[b];
+      }
+      for (int c = 8; c < 12; c++)
+      {
+        thirdPart += tempStr[c];
+      }
+      data = strToInt(firstPart);
+      data <<= 4;
+      data |= strToInt(secPart);
+      data <<= 4;
+      data |= strToInt(thirdPart);
+      //      Serial.print("Before Data : ");
+      //      Serial.println(data, BIN);
+
+      String bitk = String(data, BIN);
+      //      Serial.print("Before Bitk : ");
+      //      Serial.println(bitk);
+      addZeroTo12Bit(&bitk);
+      for (int i = 0; i < bitk.length(); i++)
+      {
+        dataArray12Bit[i] = String(bitk[i]).toInt();
+      }
+      type = 'I';
+      
+      //      int sizeOfData = sizeof(dataArray12Bit)/sizeof(dataArray12Bit)[0];
+      //      Serial.println("Data in 12 bits : ");
+      //      for (int i = 0; i < sizeOfData; i++)
+      //      {
+      //        Serial.print(dataArray12Bit[i]);
+      //      }
+      //      Serial.println();
+
+      
+
+    } 
+    sendFrame(true,true);
+    data = 0;
+
+   
+}
+
+
+
+String strTo4Bit(String str)
+{
+  String full = "";
+  for (int i = 0; i < str.length(); i++)
+  {
+    int strInt = String(str[i]).toInt();
+    String strBinary = String(strInt, BIN);
+    addZero(&strBinary);
+    full += strBinary;
+  }
+  return full;
+}
 void prepareCapture()
 {
+  mode = SPLIT_AXIS;
   if (pictureIndex < 3) {
     type = 'I';
     String colorCode = pictureStore[pictureIndex].substring(0, 4);
@@ -209,37 +413,37 @@ void prepareCapture()
     String rotate = pictureStore[pictureIndex].substring(4);
     uint32_t tempData = 0;
     if (colorCode == "0000") tempData = 0;
-   
+
     else if (colorCode == "0001") tempData = 1;
-   
+
     else if (colorCode == "0010") tempData = 2;
-  
+
     else if (colorCode == "0011") tempData = 3;
-    
+
     else if (colorCode == "0100") tempData = 4;
-   
+
     else if (colorCode == "0101") tempData = 5;
-    
+
     else if (colorCode == "0110") tempData = 6;
-    
+
     else if (colorCode == "0111") tempData = 7;
-    
+
     else if (colorCode == "1000") tempData = 8;
-    
+
     else if (colorCode == "1001") tempData = 9;
-    
+
     else if (colorCode == "1010") tempData = 10;
-    
+
     else if (colorCode == "1011") tempData = 11;
-   
+
     else if (colorCode == "1100") tempData = 12;
-    
+
     else if (colorCode == "1101") tempData = 13;
-    
+
     else if (colorCode == "1110") tempData = 14;
-   
+
     else if (colorCode == "1111") tempData = 15;
-    
+
     if (rotate == "L")
     {
       tempData <<= 2;
@@ -255,13 +459,17 @@ void prepareCapture()
       tempData <<= 2;
       tempData |= B10;
     }
-    
+
     tempData *= 64;
     data = tempData;
-    sendFrame(true);
+    sendFrame(true, false);
     pictureIndex++;
   }
-  else mode = PIXEL_MODE;
+  else
+  {
+    mode = PIXEL_MODE;
+  }
+
 
 }
 
@@ -271,55 +479,11 @@ void captureAll()
   int cameraBit = 0;
   Serial.flush();
   Serial.println(" - - Capture mode - - ");
-  Serial.print("g"); // to communicate with camera
-//  mode = SPLIT_AXIS;
-//  prepareCapture();
-  //  sendFrame(true);
-  //  delay(500);
-  //  if (Serial.available() > 0)
-  //  {
-  //    String cameraBit = Serial.readString();
-  //    String tmpS = "";
-  //    int j = 0;
-  //    for (int i = 0; i < cameraBit.length(); i++)
-  //    {
-  //      if (cameraBit[i] == ",")
-  //      {
-  //        pictureValueStore[j] = tmpS;
-  //        tmpS = "";
-  //        j++;
-  //      }
-  //      else
-  //      {
-  //        tmpS += cameraBit[i];
-  //      }
-  //    }
-  //    type = 'I';
-  //    for (int i = 0; i < sizeof(pictureValueStore); i++)
-  //    {
-  //      String temp = pictureValueStore[i].substring(0, 4);
-  //      String rotateTemp = pictureValueStore[i].substring(4);
-  //      byte value = B0;
-  //      if (rotateTemp == "C")
-  //      {
-  //        temp += "01";
-  //      }
-  //      else if (rotateTemp == "L")
-  //      {
-  //        temp += "00";
-  //      }
-  //
-  //      else if (rotateTemp == "R")
-  //      {
-  //        temp += "10";
-  //      }
-  //      data = temp.toInt();
-  //
-  //    }
 
-  //    delay(1000);
-  //
-  //  }
+
+  prepareCapture(); // เครื้องโอ
+
+  //  Serial.print("g"); // เครื่องอิน
 
 }
 
@@ -354,6 +518,44 @@ void CRC() //เอา Data มาต่อ CRC
   }
 
 }
+void makePixelFrame()
+{
+  outFrame = 0;
+  switch (type)
+  {
+    case 'I':
+      outFrame = IFrame;
+      outFrame <<= 12;
+      for (int i = 0; i < 12 ; i++)
+      {
+        outFrame <<= 1;
+        outFrame |= dataArray12Bit[i];
+      }
+      outFrame <<= 1;
+      outFrame |= frameNo;
+      break;
+    case 'S':
+      outFrame = SFrame;
+      outFrame <<= 12;
+      outFrame |= data;
+      outFrame <<= 1;
+      outFrame |= ackNo;
+      break;
+
+    case 'U':
+      outFrame = UFrame;
+      outFrame <<= 13;
+      outFrame |= data;
+      break;
+
+    default:
+      Serial.println("Please defined type of the frame.");
+      break;
+
+  }
+  CRC();
+}
+
 void makeFrame()
 {
   /*
@@ -396,11 +598,9 @@ void makeFrame()
       break;
 
   }
-  //    Serial.print("Before CRC : ");
-  //    Serial.println(outFrame, BIN);
+
   CRC();
-  //    Serial.print("After CRC : ");
-  //    Serial.println(outFrame, BIN);
+
 }
 bool checkError(unsigned int frame)
 {
@@ -457,12 +657,12 @@ void sendFSK(int freq, int in_delay) //Config later
   }
 }
 
-void sendFrame(bool isFrame)
+void sendFrame(bool isFrame, bool special)
 {
-
   if (isFrame)
   {
     startTimer = true;
+    startTime = millis();
   }
   else
   {
@@ -478,7 +678,9 @@ void sendFrame(bool isFrame)
       frameNo = 0;
       break;
   }
+  if (special) makePixelFrame();
   makeFrame();
+
   Serial.print("Sending Frame ");
   Serial.print("{");
   Serial.print(type);
@@ -495,7 +697,27 @@ void sendFrame(bool isFrame)
   dac.setVoltage(0, false);
 }
 
+void addZero(String * str)
+{
+  int sizeStr = str->length();
+  String preset = "";
+  for (int i = 0; i < 4 - sizeStr; i++)
+  {
+    preset += "0";
+  }
+  *str = preset + *str;
+}
 
+void addZeroTo12Bit(String * str)
+{
+  int sizeStr = str->length();
+  String preset = "";
+  for (int i = 0; i < 12 - sizeStr; i++)
+  {
+    preset += "0";
+  }
+  *str = preset + *str;
+}
 void receiveFrame() {
   int tmp = analogRead(A0);
   //    Serial.println(tmp);
@@ -526,11 +748,12 @@ void receiveFrame() {
 
       if (baud_check == 13) // 13 bits
       {
-        Serial.print("Receive Frame : ");
-        Serial.println(inFrame, BIN); // add two new bits in data
+//        Serial.print("Receive Frame : ");
+//        Serial.println(inFrame, BIN); // add two new bits in data
         checkFrame();
         //        Serial.flush();
         //        radio.setFrequency(frequency);
+        clearDataArray12Bit();
         inFrame = 0;
         baud_check = 0;
         bit_check = -1;
@@ -602,7 +825,7 @@ void timer()
     {
       startTime = currentTime;
       Serial.println("Retransmitting the frame ...");
-      sendFrame(true);
+      sendFrame(true, false);
     }
   }
 }
@@ -615,48 +838,45 @@ void loop()
   receiveFrame();
   servoControl();
   timer();
-    if (Serial.available() > 0 and mode == INIT_MODE)
+  if (Serial.available() > 0 and mode == INIT_MODE )
+  {
+    if (mode == INIT_MODE)
     {
       String cameraBit = Serial.readString();
-      Serial.print("Data from camera : ");
-      Serial.println(cameraBit);
-  
-      String tmpS = "";
-      int j = 0;
-      for (int i = 0; i < cameraBit.length(); i++)
+      if (cameraBit != "A" or cameraBit != "B" or cameraBit != "C")
       {
-        if (cameraBit[i] == ',')
+        Serial.print("Data from camera : ");
+        Serial.println(cameraBit);
+
+        String tmpS = "";
+        int j = 0;
+        for (int i = 0; i < cameraBit.length(); i++)
         {
-          pictureStore[j] = tmpS;
-          tmpS = "";
-          j++;
+          if (cameraBit[i] == ',')
+          {
+            pictureStore[j] = tmpS;
+            tmpS = "";
+            j++;
+          }
+          else
+          {
+            tmpS += cameraBit[i];
+          }
         }
-        else
-        {
-          tmpS += cameraBit[i];
-        }
+        //    for (int i = 0; i < sizeof(pictureStore) / sizeof(pictureStore[0]);i++)
+        //    {
+        //       Serial.println(pictureStore[i]);
+        //    }
+        mode = SPLIT_AXIS;
+        prepareCapture();
       }
-      for (int i = 0; i < 3; i++)
-      {
-        String temp = pictureStore[i].substring(0, 4);
-        String rotateTemp = pictureStore[i].substring(4);
-        if (rotateTemp == "C") temp += "01";
-        else if (rotateTemp == "L") temp += "00";
-        else if (rotateTemp == "R") temp += "10";
-      }
-      prepareCapture();
-      mode = SPLIT_AXIS;
+
     }
+    else if (mode == PIXEL_MODE)
+    {
+      // อ่านข้อมูลของอิน
+      prepareAnalysis();
+    }
+  }
 
 }
-
-//  if (startTimer)
-//  {
-//    currentTime = millis();
-//    if (currentTime - startTime > timeOut)
-//    {
-//      Serial.println("Retransmitting the frame ...");
-//      sendFrame(true);
-//    }
-//  }
-//  else currentTime = 0;
