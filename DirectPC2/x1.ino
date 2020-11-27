@@ -35,12 +35,12 @@
 #define COMPLETE 99
 
 
-
+// Dac
 double S[N];
 uint16_t S_DAC[N];
 Adafruit_MCP4725 dac;
 TEA5767 radio = TEA5767();
-
+// VAR
 bool canSend = true;
 bool intialize = true;
 bool startTimer = false;
@@ -51,11 +51,12 @@ bool boolAck = true;
 char type = 'O';
 String cmd = "";
 int mode = 0;
+int sf = 0;
 unsigned int frameNo = 0, ackNo = 0;
 uint32_t data = 0x0;
 
 int delay0, delay1, delay2, delay3;
-unsigned long long currentTime = 0, startTime = 999999999999999, timeOut = 10000;
+unsigned long long currentTime = 0, startTime = 0, timeOut = 20000;
 unsigned long long sendTime = 0, sendTimeOut = 10000;
 uint32_t outFrame = 0;
 uint16_t inFrame = 0;
@@ -66,9 +67,9 @@ int inFrameType = 0;
 int prev = 0;
 int count = 0;
 
-uint16_t baud_check = 0;
+int baud_check = 0;
 
-uint16_t bit_check = -1;
+int bit_check = -1;
 
 bool check_amp = false;
 bool check_baud = false;
@@ -78,52 +79,54 @@ const float frequency = 89.6; //Enter your own Frequency // old wave = 89.7
 uint32_t baud_begin = 0;
 
 //String pictureStore[3] = {"1011L", "1010C", "1001R"};
-String pictureStore[3] = {"0001L", "1010C", "0011R"};
-//String pictureStore[3];
+//String pictureStore[3] = {"0001L", "1010C", "0011R"};
+String pictureStore[3];
 int pictureIndex = 0;
 int pixelIndex = 0;
 int quadIndex = 0;
 
 String code = "";
-//Test
-String quadrant1[5] = {"109", "113", "113", "115", "112"};
-String quadrant2[5] = {"113", "107", "115", "111", "111"};
-String quadrant3[5] = {"111", "115", "107", "109", "110"};
-String quadrant4[5] = {"115", "111", "109", "105", "110"};
-String X[4] = {"54", "84", "154", "184"};
-String Y[4] = {"136", "166", "236", "266"};
-int dataArray12Bit[12];
-//Using
-//String quadrant1[5];
-//String quadrant2[5];
-//String quadrant3[5];
-//String quadrant4[5];
-//String X[4];
-//String y[4];
+//Test case
+//String quadrant1[5] = {"101", "502", "103", "104", "105"};
+//String quadrant2[5] = {"506", "107", "108", "109", "110"};
+//String quadrant3[5] = {"111", "112", "513", "114", "115"};
+//String quadrant4[5] = {"516", "117", "118", "119", "520"};
+//String X[5] = {"550", "151", "552", "153", "444"};
+//String Y[5] = {"160", "161", "562", "163", "555"};
+
+int dataArray12Bit[12]; // เอาไว้เก็บ data ให้เต็ม 12 Bits
+String quadrant1[5]; // ค่า grayscale ของ quadrant 1 ที่อ่านได้จาก Camera ส่งมาที่ PC2
+String quadrant2[5]; // ค่า grayscale ของ quadrant 2 ที่อ่านได้จาก Camera ส่งมาที่ PC2
+String quadrant3[5]; // ค่า grayscale ของ quadrant 3 ที่อ่านได้จาก Camera ส่งมาที่ PC2
+String quadrant4[5]; // ค่า grayscale ของ quadrant 4 ที่อ่านได้จาก Camera ส่งมาที่ PC2
+String X[5]; // เส้น X ที่ใช้สำหรับการตีเส้นแนว X
+String Y[5]; // เส้น Y ที่ใช้สำหรับการตีเส้นแนว Y 
+
+String gBit = "";
 //Servo setup
 
 int x = 0;
 Servo myservo;
 int num = 40;
 
-uint32_t storage_array[50];
-//Vector<uint32_t> vector(storage_array);
 //End
 void setup() {
+  // 
   Serial.begin(115200);
   dac.begin(0x64);
   Wire.begin();
-
-  for (int i = 0; i < N; i++) {
+  
+  // ค่าที่เอาไว้ให้สำหรับ dac
+  for (int i = 0; i < N; i++) 
+  {
     S[i] = sin(2 * PI * (i / (double)N));
     S_DAC[i] = 4095 / 2.0 * (1 + S[i]);
-    //    Serial.println(S_DAC[i]);
   }
-  for (int i = 0; i < 21; i++)
-  {
-    dataArray12Bit[i] = 0;
-  }
-
+  // เซ็ตค่าเริ่มต้นใน array
+  for (int i = 0; i < 12; i++) dataArray12Bit[i] = 0;
+  
+  
+  // กำหนดค่า delay สำหรับใช้ในการส่งข้อมูลแบบ FSK
   delay0 = (1000000 / f0 - 1000000 / defaultFreq) / N;
   delay1 = (1000000 / f1 - 1000000 / defaultFreq) / N;
   delay2 = (1000000 / f2 - 1000000 / defaultFreq) / N;
@@ -134,7 +137,9 @@ void setup() {
   cbi(ADCSRA, ADPS0);
   pinMode(A0, INPUT);
 
-  radio.setFrequency(frequency);
+  // เช็ทค่า frequency ที่ต้องการให้ radio รับ
+  radio.set_frequency(frequency);
+  
   // Servo init
   myservo.attach(9); // กำหนดขา 9 ควบคุม Servo
   if (x < num) {
@@ -160,8 +165,8 @@ void setup() {
   // Servo end
 
   Serial.flush();
-  //    delay(2000);
 }
+
 
 void clearDataArray12Bit()
 {
@@ -171,69 +176,139 @@ void clearDataArray12Bit()
   }
 }
 
+// Reset ค่าทุกอย่างเป็นค่าเริ่มต้น
+void flushData()
+{
+  canSend = true;
+  intialize = true;
+  startTimer = false;
+  receivedAck = false;
+  boolFrame = false;
+  boolAck = true;
+
+  type = 'O';
+  cmd = "";
+  mode = 0;
+  sf = 0;
+  frameNo = 0;
+  ackNo = 0;
+  data = 0x0;
+  currentTime = 0;
+  startTime = 0;
+  sendTime = 0;
+  sendTimeOut = 10000;
+  outFrame = 0;
+  inFrame = 0;
+  baud_count = 0;
+  inFrameType = 0;
+  clearDataArray12Bit();
+  x = 0; num = 40;
+  code = "";
+  gBit = "";
+  for (int i = 0; i < 5;i++)quadrant1[i] = "";  
+
+for (int i = 0; i < 5;i++)quadrant2[i] = ""; 
+
+for (int i = 0; i < 5;i++)quadrant3[i] = ""; 
+
+for (int i = 0; i < 5;i++)quadrant4[i] = ""; 
+
+for (int i = 0; i < 5;i++)X[i] = ""; 
+
+for (int i = 0; i < 5;i++)Y[i] = ""; 
+
+
+  prev = 0;
+  count = 0;
+
+  baud_check = 0;
+
+  bit_check = -1;
+
+  check_amp = false;
+  check_baud = false;
+
+  baud_begin = 0;
+
+  //String pictureStore[3] = {"1011L", "1010C", "1001R"};
+  //String pictureStore[3] = {"0001L", "1010C", "0011R"};
+  for (int i = 0;i<3;i++)
+  {
+    pictureStore[i]="";  
+  }
+  pictureIndex = 0;
+  pixelIndex = 0;
+  quadIndex = 0;
+
+  String code = "";
+}
+
+/* เช็คว่าเฟรมที่รับมามี Error หรือไม่ จากนั้นเช็คชนิดของเฟรมว่าเป็นเฟรมอะไร */
 void checkFrame()
 {
   if (checkError(inFrame) == false) // No error
   {
-    int inFrameType = inFrame >> 10;
+    int inFrameType = inFrame >> 10; // 
     if (inFrameType == UFrame)
     {
-      //      type = 'S';
-      //      data = 0x1ffffff;
-      //      data = 0x1555555;
-      sendFrame(false, false);
+       
+      sendFrame(false, false); // ส่ง ack ตอบกลับ
 
       int cmd = (inFrame >> 5) & B11111;
-
-      if (cmd == B00110)
+      
+      
+      if (cmd == B00110) // ถ้าได้รับคำสั่งให้เชื่อมต่อ
       {
         Serial.println("Waiting for PC1 command ...");
       }
-      else if (cmd == B00111)
+      else if (cmd == B00001) // ถ้าได้รับคำสั่งให้เริ่มทำงานใหม่ตั้งแต่ต้น
+      {
+        Serial.println(" ---- Restart ---- ");
+        flushData();
+      }
+      else if (cmd == B00111) // ถ้าได้รับคำสั่งที่ให้สิ้นสุดการทำงาน
       {
         Serial.println("---- End ----");
+        Serial.print(3); // ส่งไปบอกส่วน Camera ให้หยุดการทำงาน
       }
-
     }
-    else if (inFrameType == SFrame)
+    
+    else if (inFrameType == SFrame) //ถ้าเฟรมที่ได้รับคือ S-Frame
     {
       uint8_t tmp = (inFrame >> 6) & B1111;
-      if (tmp == 0x9)
+      if (tmp == 0x9) // ถ้า unpack เฟรมออกมาแล้วได้ค่า 0x9 คือแสดงว่าได้รับ ack ที่ถูกต้อง
       {
         Serial.println("Received ack.");
         startTimer = false;
         boolFrame = !boolFrame;
-        canSend = true;
-        if (mode == SPLIT_AXIS) prepareCapture();
-        else if (mode == PIXEL_MODE and pixelIndex < 5) prepareAnalysis();
-        else if (mode == COMPLETE) Serial.println("Terminated.");
+        canSend = true; // ให้เริ่มส่งเฟรมต่อไปได้
+        if (mode == SPLIT_AXIS) prepareCapture(); // ถ้าโหมดเป็น SPLIT_AXIS ให้เริ่มการถ่ายภาพ
+        else if (mode == PIXEL_MODE and pixelIndex < 5) prepareAnalysis(); // ถ้่่าเป็น PIXEL_MODE และยังได้รับค่าที่ส่งมาจากกล้องยังไม่ครบ ให้ส่งข้อมูลกลับไปเรื่อยๆ
+        else if (mode == COMPLETE) Serial.println("Terminated."); // ถ้าเป็น COMPLETE ให้จบการทำงาน
       }
     }
-
-    else if (inFrameType == IFrame)
+    else if (inFrameType == IFrame) //ถ้าเฟรมที่ได้รับคือ I-Frame
     {
-
-      int cmd = (inFrame >> 6) & B1111;
-      if (cmd == B1111 and mode == INIT_MODE) captureAll();
-      else if (mode == PIXEL_MODE) analysis(cmd);
-
-      //      sendFrame(false);
+      int D = (inFrame >> 6) & B1111; // แกะออกมาดูว่า PC1 ส่งข้อมูลอะไรมา
+      if (D == B1111 and mode == INIT_MODE) captureAll(); // ถ้าโหมดเป็น INIT_MODE และได้รับข้อมูล 1111 ให้เริ่มทำการถ่ายภาพ 3 มุม
+      else if (mode == PIXEL_MODE) analysis(cmd); // ถ้าโหมดเป็น PIXEL_MODE ให้เริ่มวิเคราะห์ภาพ ตามค่ารหัสที่ PC 1 ส่งมา
+      sendFrame(false,false); // ส่ง ack กลับว่าได้รับแล้ว
     }
   }
   else
   {
-    Serial.println("Error detected in data");
+    Serial.println("Error detected in data"); 
   }
 }
 
 void analysis(int inCode)
 {
-
+  mode = PIXEL_MODE;
   code = String(inCode, BIN);
   addZero(&code);
   Serial.println(" - - Pixel mode - - ");
-  prepareAnalysis();
-  //  Serial.print(code); // วิเคราะห์ข้อมูลของรหัสภาพ
+  //  prepareAnalysis();
+  Serial.print(code); // วิเคราะห์ข้อมูลของรหัสภาพ (ส่งไปที่ python)
 
 }
 
@@ -264,9 +339,9 @@ void prepareAnalysis()
   {
     sendPixelToPc1(Y, pixelIndex);
   }
-  
+
   pixelIndex++;
-  
+
   if (pixelIndex == 5)
   {
     if (quadIndex == 4)
@@ -282,14 +357,15 @@ void prepareAnalysis()
     {
       Serial.print(" - - Sended all ");
       Serial.print(quadIndex + 1);
-      Serial.println(" quadrant data - - ");  
+      Serial.println(" quadrant data - - ");
     }
-    
+
     quadIndex++;
     pixelIndex = 0;
   }
 }
-int strToInt(String colorCode)
+
+int strToInt(String colorCode) // Format รูปแบบ
 {
   int tempData = 0;
 
@@ -330,67 +406,51 @@ int strToInt(String colorCode)
 }
 
 
-void sendPixelToPc1(String arr[], int index)
+void sendPixelToPc1(String arr[], int index) 
 {
-  
-    int i = index;
-    String tempStr = strTo4Bit(arr[i]);
-    //    Serial.println(tempStr);
-    for (int j = 0; j < tempStr.length(); j++)
+
+  int i = index;
+  String tempStr = strTo4Bit(arr[i]);
+  //    Serial.println(tempStr);
+  for (int j = 0; j < tempStr.length(); j++)
+  {
+    String firstPart = "";
+    String secPart = "";
+    String thirdPart = "";
+    for (int a = 0; a < 4; a++)
     {
-      String firstPart = "";
-      String secPart = "";
-      String thirdPart = "";
-      for (int a = 0; a < 4; a++)
-      {
-        firstPart += tempStr[a];
-      }
-      for (int b = 4; b < 8; b++)
-      {
-        secPart += tempStr[b];
-      }
-      for (int c = 8; c < 12; c++)
-      {
-        thirdPart += tempStr[c];
-      }
-      data = strToInt(firstPart);
-      data <<= 4;
-      data |= strToInt(secPart);
-      data <<= 4;
-      data |= strToInt(thirdPart);
-      //      Serial.print("Before Data : ");
-      //      Serial.println(data, BIN);
+      firstPart += tempStr[a];
+    }
+    for (int b = 4; b < 8; b++)
+    {
+      secPart += tempStr[b];
+    }
+    for (int c = 8; c < 12; c++)
+    {
+      thirdPart += tempStr[c];
+    }
+    data = strToInt(firstPart);
+    data <<= 4;
+    data |= strToInt(secPart);
+    data <<= 4;
+    data |= strToInt(thirdPart);
 
-      String bitk = String(data, BIN);
-      //      Serial.print("Before Bitk : ");
-      //      Serial.println(bitk);
-      addZeroTo12Bit(&bitk);
-      for (int i = 0; i < bitk.length(); i++)
-      {
-        dataArray12Bit[i] = String(bitk[i]).toInt();
-      }
-      type = 'I';
-      
-      //      int sizeOfData = sizeof(dataArray12Bit)/sizeof(dataArray12Bit)[0];
-      //      Serial.println("Data in 12 bits : ");
-      //      for (int i = 0; i < sizeOfData; i++)
-      //      {
-      //        Serial.print(dataArray12Bit[i]);
-      //      }
-      //      Serial.println();
 
-      
+    String bitk = String(data, BIN);
 
-    } 
-    sendFrame(true,true);
-    data = 0;
+    addZeroTo12Bit(&bitk); // ถ้าข้อมูลไม่ครบ 12 bit เติม 0 ข้างหน้าให้เติม
+    for (int i = 0; i < bitk.length(); i++) dataArray12Bit[i] = String(bitk[i]).toInt();dataArray12Bit[i] = String(bitk[i]).toInt();
+    type = 'I';
 
-   
+  }
+  sendFrame(true, true); // สร้างเฟรมแบบพิเศษ​สำหรับส่งค่าที่เป็น x,y และ grayscale ต่างๆ
+  data = 0;
+
 }
 
 
 
-String strTo4Bit(String str)
+String strTo4Bit(String str) // Format รูปแบบ
 {
   String full = "";
   for (int i = 0; i < str.length(); i++)
@@ -402,14 +462,14 @@ String strTo4Bit(String str)
   }
   return full;
 }
-void prepareCapture()
+void prepareCapture() 
 {
   mode = SPLIT_AXIS;
+  /* สั่งให้นำข้อมูลที่ได้รับจากกล้องมา pack ข้อมูลให้อยู่ในรูปแบบที่พร้อมจะส่งเป็นเฟรม */
   if (pictureIndex < 3) {
+    
     type = 'I';
     String colorCode = pictureStore[pictureIndex].substring(0, 4);
-    Serial.print("Color code : ");
-    Serial.println(colorCode);
     String rotate = pictureStore[pictureIndex].substring(4);
     uint32_t tempData = 0;
     if (colorCode == "0000") tempData = 0;
@@ -459,42 +519,33 @@ void prepareCapture()
       tempData <<= 2;
       tempData |= B10;
     }
-
     tempData *= 64;
     data = tempData;
     sendFrame(true, false);
     pictureIndex++;
   }
-  else
-  {
-    mode = PIXEL_MODE;
-  }
-
+  else mode = PIXEL_MODE; // ถ้าเกิน pictureIndex ให้เปลี่ยนเป็นโหมด PIXEL_MODE 
+  
+    
+  
 
 }
 
 void captureAll()
 {
-  int i = 0;
-  int cameraBit = 0;
   Serial.flush();
   Serial.println(" - - Capture mode - - ");
-
-
-  prepareCapture(); // เครื้องโอ
-
-  //  Serial.print("g"); // เครื่องอิน
-
+  Serial.print("g"); // ส่งคำสั่งไปให้ฝั่ง python เริ่มถ่าย 3 มุม
 }
 
 void CRC() //เอา Data มาต่อ CRC
 {
   if (outFrame != 0)
   {
-    unsigned long long canXOR = 0x800000000;//ตั้งใหญ่ๆไว้ก่อนเพื่อเอามาเช็คขนาดดาต้า
-    unsigned long long remainder = outFrame << 5;//ตัวแปรใหม่ที่มาจากการเติม 0 หลัง outFrame 5 ตัว
-    unsigned long divisor = B110101;//กำหนด divisor
-    unsigned long long tmp = canXOR & remainder;//ไว้ตรวจว่าจะเอา remainder ไป or ตรงไหนใน data(ต้อง XOR ตัวหน้าสุดก่อน)
+    unsigned long long canXOR = 0x800000000;// ตัวเช็คขนาด data
+    unsigned long long remainder = outFrame << 5; 
+    unsigned long divisor = B101100; // Divisor
+    unsigned long long tmp = canXOR & remainder; // เช็คตำแหน่งการ or ของ remainder กับ data
     while (tmp == 0)
     {
       canXOR >>= 1;//ปรับขนาดให้เท่ากับดาต้า
@@ -513,8 +564,8 @@ void CRC() //เอา Data มาต่อ CRC
       divisor >>= 1;
       canXOR >>= 1;
     }
-    outFrame <<= 5;//เติม0 5ตัว
-    outFrame += remainder;//เปลี่ยน5บิตสุดท้ายเป็นremainder
+    outFrame <<= 5; //เติม0 5ตัว
+    outFrame += remainder; //เปลี่ยน5บิตสุดท้ายเป็นremainder
   }
 
 }
@@ -748,8 +799,8 @@ void receiveFrame() {
 
       if (baud_check == 13) // 13 bits
       {
-//        Serial.print("Receive Frame : ");
-//        Serial.println(inFrame, BIN); // add two new bits in data
+        //        Serial.print("Receive Frame : ");
+        //        Serial.println(inFrame, BIN); // add two new bits in data
         checkFrame();
         //        Serial.flush();
         //        radio.setFrequency(frequency);
@@ -779,7 +830,7 @@ void receiveFrame() {
 void servoControl()
 {
   if (Serial.available() > 0) {
-    int input = Serial.read();
+    char input = Serial.read();
     if (input == 'A') {
       num = 40;
     }
@@ -830,6 +881,7 @@ void timer()
   }
 }
 
+
 //-----------------------------------Timer end-------------------------------------//
 
 void loop()
@@ -837,17 +889,18 @@ void loop()
 
   receiveFrame();
   servoControl();
-  timer();
-  if (Serial.available() > 0 and mode == INIT_MODE )
+//  timer();
+  if (Serial.available() > 0)
   {
     if (mode == INIT_MODE)
     {
-      String cameraBit = Serial.readString();
-      if (cameraBit != "A" or cameraBit != "B" or cameraBit != "C")
+      String cameraBit = Serial.readStringUntil('/');
+      servoControl();
+      if (cameraBit.length() > 10)
       {
         Serial.print("Data from camera : ");
         Serial.println(cameraBit);
-
+        gBit = cameraBit;
         String tmpS = "";
         int j = 0;
         for (int i = 0; i < cameraBit.length(); i++)
@@ -869,14 +922,68 @@ void loop()
         //    }
         mode = SPLIT_AXIS;
         prepareCapture();
+
+
       }
 
     }
     else if (mode == PIXEL_MODE)
     {
-      // อ่านข้อมูลของอิน
-      prepareAnalysis();
+      //servoControl();
+      String axisBit = Serial.readStringUntil(',');
+
+      if (axisBit.length() > 40 and sf == 0)
+      {
+        //        String extraBit = Serial.readStringUntil(',');
+        Serial.print("Data from firstTime : ");
+        Serial.println(axisBit);
+        gBit = axisBit;
+
+        quadrant1[0] = gBit.substring(0, 3);
+        quadrant1[1] = gBit.substring(3, 6);
+        quadrant1[2] = gBit.substring(6, 9);
+        quadrant1[3] = gBit.substring(9, 12);
+        quadrant1[4] = gBit.substring(12, 15);
+
+        quadrant2[0] = gBit.substring(15, 18);
+        quadrant2[1] = gBit.substring(18, 21);
+        quadrant2[2] = gBit.substring(21, 24);
+        quadrant2[3] = gBit.substring(24, 27);
+        quadrant2[4] = gBit.substring(27, 30);
+
+        quadrant3[0] = gBit.substring(30, 33);
+        quadrant3[1] = gBit.substring(33, 36);
+        quadrant3[2] = gBit.substring(36, 39);
+        quadrant3[3] = gBit.substring(39, 42);
+        quadrant3[4] = gBit.substring(42, 45);
+        sf = 1;
+      }
+      else if (axisBit.length() > 40 and sf == 1 ) {
+
+        quadrant4[0] = axisBit.substring(0, 3);
+        quadrant4[1] = axisBit.substring(3, 6);
+        quadrant4[2] = axisBit.substring(6, 9);
+        quadrant4[3] = axisBit.substring(9, 12);
+        quadrant4[4] = axisBit.substring(12, 15);
+
+        X[0] = axisBit.substring(15, 18);
+        X[1] = axisBit.substring(18, 21);
+        X[2] = axisBit.substring(21, 24);
+        X[3] = axisBit.substring(24, 27);
+        X[4] = axisBit.substring(27, 30);
+
+        Y[0] = axisBit.substring(30, 33);
+        Y[1] = axisBit.substring(33, 36);
+        Y[2] = axisBit.substring(36, 39);
+        Y[3] = axisBit.substring(39, 42);
+        Y[4] = axisBit.substring(42, 45);
+
+        sf = 0;
+        
+        prepareAnalysis();
+//        flushData();
+      }
+
     }
   }
-
 }
