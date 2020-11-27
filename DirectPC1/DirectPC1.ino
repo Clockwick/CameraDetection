@@ -325,7 +325,7 @@ bool checkError(uint32_t frame)
       divisor <<= 1;
       tmp = canXOR & divisor;
     }
-    while (divisor >= B110101)
+    while (divisor >= B101100)
     {
       tmp = remainder & canXOR;
       if (tmp > 0)remainder = remainder ^ divisor; // XOR

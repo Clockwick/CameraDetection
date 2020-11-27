@@ -40,6 +40,7 @@ double S[N];
 uint16_t S_DAC[N];
 Adafruit_MCP4725 dac;
 TEA5767 radio = TEA5767();
+
 // VAR
 bool canSend = true;
 bool intialize = true;
@@ -78,21 +79,13 @@ const float frequency = 89.6; //Enter your own Frequency // old wave = 89.7
 
 uint32_t baud_begin = 0;
 
-//String pictureStore[3] = {"1011L", "1010C", "1001R"};
-//String pictureStore[3] = {"0001L", "1010C", "0011R"};
 String pictureStore[3];
 int pictureIndex = 0;
 int pixelIndex = 0;
 int quadIndex = 0;
 
 String code = "";
-//Test case
-//String quadrant1[5] = {"101", "502", "103", "104", "105"};
-//String quadrant2[5] = {"506", "107", "108", "109", "110"};
-//String quadrant3[5] = {"111", "112", "513", "114", "115"};
-//String quadrant4[5] = {"516", "117", "118", "119", "520"};
-//String X[5] = {"550", "151", "552", "153", "444"};
-//String Y[5] = {"160", "161", "562", "163", "555"};
+
 
 int dataArray12Bit[12]; // เอาไว้เก็บ data ให้เต็ม 12 Bits
 String quadrant1[5]; // ค่า grayscale ของ quadrant 1 ที่อ่านได้จาก Camera ส่งมาที่ PC2
@@ -230,8 +223,6 @@ for (int i = 0; i < 5;i++)Y[i] = "";
 
   baud_begin = 0;
 
-  //String pictureStore[3] = {"1011L", "1010C", "1001R"};
-  //String pictureStore[3] = {"0001L", "1010C", "0011R"};
   for (int i = 0;i<3;i++)
   {
     pictureStore[i]="";  
@@ -435,7 +426,6 @@ void sendPixelToPc1(String arr[], int index)
     data <<= 4;
     data |= strToInt(thirdPart);
 
-
     String bitk = String(data, BIN);
 
     addZeroTo12Bit(&bitk); // ถ้าข้อมูลไม่ครบ 12 bit เติม 0 ข้างหน้าให้เติม
@@ -524,10 +514,7 @@ void prepareCapture()
     sendFrame(true, false);
     pictureIndex++;
   }
-  else mode = PIXEL_MODE; // ถ้าเกิน pictureIndex ให้เปลี่ยนเป็นโหมด PIXEL_MODE 
-  
-    
-  
+  else mode = PIXEL_MODE; // ถ้าเกิน pictureIndex ให้เปลี่ยนเป็นโหมด PIXEL_MODE
 
 }
 
@@ -548,19 +535,19 @@ void CRC() //เอา Data มาต่อ CRC
     unsigned long long tmp = canXOR & remainder; // เช็คตำแหน่งการ or ของ remainder กับ data
     while (tmp == 0)
     {
-      canXOR >>= 1;//ปรับขนาดให้เท่ากับดาต้า
+      canXOR >>= 1;
       tmp = canXOR & remainder;
     }
-    tmp = canXOR & divisor;//ไว้ตรวจว่าจะเริ่ม XOR ตำแหน่งไหน
+    tmp = canXOR & divisor;
     while (tmp == 0)
     {
-      divisor <<= 1;//ชิพไปเรื่อยๆจนกว่าจะถึงตำแหน่ง XOR แรก
+      divisor <<= 1;
       tmp = canXOR & divisor;
     }
-    while (divisor >= B110101)//ทำจนกว่า divisor จะน้อยกว่าค่าที่กำหนด
+    while (divisor >= B101100)
     {
-      tmp = remainder & canXOR;//ดูว่าตำแหน่งนี้ XOR ได้หรือไม่(XOR ตำแหน่งที่เป็น 1xxxxx)
-      if (tmp > 0) remainder = remainder ^ divisor;//ทำการ XOR
+      tmp = remainder & canXOR;
+      if (tmp > 0) remainder = remainder ^ divisor; // XOR
       divisor >>= 1;
       canXOR >>= 1;
     }
@@ -657,26 +644,26 @@ bool checkError(unsigned int frame)
 {
   if (frame != 0)
   {
-    unsigned long long canXOR = 0x80000000;//ตั้งใหญ่ๆไว้ก่อนเพื่อเอามาเช็คขนาดดาต้า
+    unsigned long long canXOR = 0x80000000;
     unsigned long long remainder = frame;
-    unsigned long divisor = B110101;//กำหนด divisor
-    unsigned long long tmp = canXOR & remainder;//ไว้ตรวจว่าจะเอา remainder ไป or ตรงไหนใน data(ต้อง XOR ตัวหน้าสุดก่อน)
+    unsigned long divisor = B101100;
+    unsigned long long tmp = canXOR & remainder;
     while (tmp == 0)
     {
-      canXOR >>= 1;//ปรับขนาดให้เท่ากับดาต้า
+      canXOR >>= 1;
       tmp = canXOR & remainder;
     }
 
-    tmp = canXOR & divisor;//ไว้ตรวจว่าจะเริ่ม XOR ตำแหน่งไหน
+    tmp = canXOR & divisor;
     while (tmp == 0)
     {
-      divisor <<= 1;//ชิพไปเรื่อยๆจนกว่าจะถึงตำแหน่ง XOR แรก
+      divisor <<= 1;
       tmp = canXOR & divisor;
     }
-    while (divisor >= B110101)//ทำจนกว่า divisor จะน้อยกว่าค่าที่กำหนด
+    while (divisor >= B101100)
     {
-      tmp = remainder & canXOR;//ดูว่าตำแหน่งนี้ XOR ได้หรือไม่(XOR ตำแหน่งที่เป็น 1xxxxx)
-      if (tmp > 0)remainder = remainder ^ divisor;//ทำการ XOR
+      tmp = remainder & canXOR;
+      if (tmp > 0)remainder = remainder ^ divisor;
       divisor >>= 1;
       canXOR >>= 1;
     }
@@ -685,7 +672,7 @@ bool checkError(unsigned int frame)
     else return true;
   }
 }
-void sendFSK(int freq, int in_delay) //Config later
+void sendFSK(int freq, int in_delay)
 {
   int cyc;
   switch (freq)
@@ -700,9 +687,9 @@ void sendFSK(int freq, int in_delay) //Config later
 
   for (int sl = 0; sl < cyc; sl++)
   {
-    for (int s = 0; s < N; s++) //4 sample/cycle
+    for (int s = 0; s < N; s++) 
     {
-      dac.setVoltage(S_DAC[s], false);//modify amplitude
+      dac.setVoltage(S_DAC[s], false);
       delayMicroseconds(in_delay);
     }
   }
@@ -718,7 +705,7 @@ void sendFrame(bool isFrame, bool special)
   else
   {
     type = 'S';
-    data = 0x801;
+    data = 0x801; // ตอบกลับ ack
   }
   switch (boolFrame)
   {
@@ -748,7 +735,7 @@ void sendFrame(bool isFrame, bool special)
   dac.setVoltage(0, false);
 }
 
-void addZero(String * str)
+void addZero(String * str) // Format รูปแบบ
 {
   int sizeStr = str->length();
   String preset = "";
@@ -759,7 +746,7 @@ void addZero(String * str)
   *str = preset + *str;
 }
 
-void addZeroTo12Bit(String * str)
+void addZeroTo12Bit(String * str) // Format รูปแบบ
 {
   int sizeStr = str->length();
   String preset = "";
@@ -771,10 +758,9 @@ void addZeroTo12Bit(String * str)
 }
 void receiveFrame() {
   int tmp = analogRead(A0);
-  //    Serial.println(tmp);
+  
   if ( tmp > r_slope and prev < r_slope and !check_amp ) // check amplitude
   {
-    //Serial.println(tmp);
     check_amp = true; // is first max amplitude in that baud
     if ( !check_baud )
     {
@@ -784,7 +770,7 @@ void receiveFrame() {
   }
 
   if (tmp < r_slope and check_baud) {
-    if (micros() - baud_begin  > 9900) // full baud
+    if (micros() - baud_begin  > 9900)
     {
       if (count >= 4 && count < 9) count = 5;
       else if (count >= 9) count = 14;
@@ -795,15 +781,14 @@ void receiveFrame() {
 
       baud_check++;
 
-      //Serial.println("BBBB-------");
+      
 
       if (baud_check == 13) // 13 bits
       {
-        //        Serial.print("Receive Frame : ");
-        //        Serial.println(inFrame, BIN); // add two new bits in data
+      
         checkFrame();
-        //        Serial.flush();
-        //        radio.setFrequency(frequency);
+        Serial.flush();
+        radio.setFrequency(frequency);
         clearDataArray12Bit();
         inFrame = 0;
         baud_check = 0;
@@ -817,12 +802,11 @@ void receiveFrame() {
 
   if (tmp > r_slope and check_amp) {
     count++;
-    //Serial.println(tmp);
     check_baud = true;
     check_amp = false;
   }
   prev = tmp;
-  //Serial.println(micros() - baud_begin);
+  
 }
 
 //-------------------------------------Servo-------------------------------------//
@@ -889,9 +873,10 @@ void loop()
 
   receiveFrame();
   servoControl();
-//  timer();
+  timer();
   if (Serial.available() > 0)
   {
+    /*อ่านข้อมูลจากส่วน camera มาเก็บค่ารหัสของมุม 3 มุม ไว้ เพื่อเตรียม pack frame ส่งไปให้ PC 1 */
     if (mode == INIT_MODE)
     {
       String cameraBit = Serial.readStringUntil('/');
@@ -916,25 +901,19 @@ void loop()
             tmpS += cameraBit[i];
           }
         }
-        //    for (int i = 0; i < sizeof(pictureStore) / sizeof(pictureStore[0]);i++)
-        //    {
-        //       Serial.println(pictureStore[i]);
-        //    }
         mode = SPLIT_AXIS;
         prepareCapture();
-
-
       }
 
     }
+    /*อ่านข้อมูลจากส่วน camera มาเก็บค่า x,y, grayscale ไว้ เพื่อเตรียม pack frame ส่งไปให้ PC 1 */
     else if (mode == PIXEL_MODE)
     {
-      //servoControl();
       String axisBit = Serial.readStringUntil(',');
 
       if (axisBit.length() > 40 and sf == 0)
       {
-        //        String extraBit = Serial.readStringUntil(',');
+
         Serial.print("Data from firstTime : ");
         Serial.println(axisBit);
         gBit = axisBit;
@@ -981,7 +960,7 @@ void loop()
         sf = 0;
         
         prepareAnalysis();
-//        flushData();
+
       }
 
     }
