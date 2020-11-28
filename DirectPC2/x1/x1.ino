@@ -10,12 +10,12 @@
 
 #include <Servo.h>
 #include <TEA5767.h>
-//#include <Vector.h>
+
 #define fullFrameSize 21
 
 
 #define r_slope 400
-// Config later
+
 #define defaultFreq 1700
 #define f0 500
 #define f1 800
@@ -25,10 +25,12 @@
 
 #define N 4
 
+// Type of Frame
 #define IFrame 7
 #define UFrame 4
 #define SFrame 6
 
+// Mode
 #define INIT_MODE 0
 #define SPLIT_AXIS 1
 #define PIXEL_MODE 2
@@ -85,7 +87,6 @@ int pixelIndex = 0;
 int quadIndex = 0;
 
 String code = "";
-
 
 int dataArray12Bit[12]; // เอาไว้เก็บ data ให้เต็ม 12 Bits
 String quadrant1[5]; // ค่า grayscale ของ quadrant 1 ที่อ่านได้จาก Camera ส่งมาที่ PC2
@@ -303,7 +304,7 @@ void analysis(int inCode)
 
 }
 
-void prepareAnalysis()
+void prepareAnalysis() // วนส่งข้อมูล x,y, grayscale ของแต่ละ quadrant ไปที่ PC1 เมื่อได้รับ ack ตอบกลับ
 {
   data = 0;
   if (quadIndex == 0)
@@ -402,24 +403,17 @@ void sendPixelToPc1(String arr[], int index)
 
   int i = index;
   String tempStr = strTo4Bit(arr[i]);
-  //    Serial.println(tempStr);
   for (int j = 0; j < tempStr.length(); j++)
   {
     String firstPart = "";
     String secPart = "";
     String thirdPart = "";
-    for (int a = 0; a < 4; a++)
-    {
-      firstPart += tempStr[a];
-    }
-    for (int b = 4; b < 8; b++)
-    {
-      secPart += tempStr[b];
-    }
-    for (int c = 8; c < 12; c++)
-    {
-      thirdPart += tempStr[c];
-    }
+    for (int a = 0; a < 4; a++) firstPart += tempStr[a];firstPart += tempStr[a];
+ 
+    for (int b = 4; b < 8; b++) secPart += tempStr[b];secPart += tempStr[b];
+
+    for (int c = 8; c < 12; c++) thirdPart += tempStr[c];thirdPart += tempStr[c];
+
     data = strToInt(firstPart);
     data <<= 4;
     data |= strToInt(secPart);
@@ -437,7 +431,6 @@ void sendPixelToPc1(String arr[], int index)
   data = 0;
 
 }
-
 
 
 String strTo4Bit(String str) // Format รูปแบบ
@@ -640,6 +633,7 @@ void makeFrame()
   CRC();
 
 }
+/* ใช้ CRC เช็ค Error ถ้ remainder = 0 แสดงว่าข้อมูลที่ได้รับถูกต้อง */
 bool checkError(unsigned int frame)
 {
   if (frame != 0)
@@ -672,6 +666,7 @@ bool checkError(unsigned int frame)
     else return true;
   }
 }
+
 void sendFSK(int freq, int in_delay)
 {
   int cyc;
@@ -697,7 +692,7 @@ void sendFSK(int freq, int in_delay)
 
 void sendFrame(bool isFrame, bool special)
 {
-  if (isFrame)
+  if (isFrame) // ส่งแบบมีการจับเวลา Time out
   {
     startTimer = true;
     startTime = millis();
@@ -716,8 +711,8 @@ void sendFrame(bool isFrame, bool special)
       frameNo = 0;
       break;
   }
-  if (special) makePixelFrame();
-  makeFrame();
+  if (special) makePixelFrame(); // เฟรมสำหรับใช้ส่งในโหมด PIXEL เป็นการต่อข้อมูลให้ครบรูปแบบ
+  else makeFrame();
 
   Serial.print("Sending Frame ");
   Serial.print("{");
