@@ -368,26 +368,30 @@ void checkFrame()
         startTimer = false;
         boolFrame = !boolFrame;
         canSend = true;
-        if (mode == CAPTURE_MODE) // เริ่มต้นการโหมดถ่ายรูป 3 มุม
-        {
-          Serial.println("/*--------------------- The connection has been established. ---------------------*/");
-          Serial.println("Type \"capture\" or \"c\" to start Capturing.");
-          mode = DISPLAY_MODE;
-        }
-
-        else if (mode == ANALYSIS_MODE) // เริ่มต้นโหมดวิเคราะห์รูปภาพ
-        {
-          Serial.println("/*--------------------- Analysis mode ---------------------*/");
-        }
       }
-
 
     }
     if (inFrameType == UFrame) //U-Frame
     {
-      // For terminated connection .
-      uint32_t tmp = (inFrame >> 5) & 0x1ffffff;
-
+      uint32_t cmd = (inFrame >> 5) & 0x1ffffff;
+      switch (cmd)
+      {
+        case 0x1000:
+          Serial.println("/*--------------------- The connection has been established. ---------------------*/");
+          Serial.println("Type \"capture\" or \"c\" to start Capturing.");
+          break;
+        case 0x1800:
+          Serial.println("/*--------------------- Reset all connection. ---------------------*/")
+          mode = RESTART_MODE
+          break;
+        case 0x1c00:
+          Serial.println("/*--------------------- The connection has been terminated. ---------------------*/");
+          mode = TERMINATE_MODE
+          break;
+        default:
+          Serial.println("U-Frame from PC2 must be wrong.");
+          break;
+      }
     }
     else if (inFrameType == IFrame) //I-Frame
     {
@@ -419,7 +423,7 @@ void checkFrame()
         case ANALYSIS_MODE:
           String readyInFrame = String(inFrame, BIN);
           addZeroTo12Bit(&readyInFrame);
-          String number = convertToInt(readyInFrame);
+          String number = convertToString(readyInFrame);
           if (qIndex1 < 5)
           {
             quadrant1[qIndex1] = number;
@@ -455,7 +459,7 @@ void checkFrame()
       }
       if (pictureIndex == 3 and mode == DISPLAY_MODE) //ได้รับข้อมูลครบแล้ว แสดงผลบน Serial Monitor
       {
-        for (int i = 0 ; i < pictureIndex; i++) addZero(&pictureStore[i]);
+        for (int i = 0 ; i < pictureIndex; i++) addZeroTo6Bit(&pictureStore[i]);
         displayValue();
       }
 
@@ -514,7 +518,7 @@ void addZeroTo12Bit(String* str) // Format รูปแบบ
   }
   *str = preset + *str;
 }
-void addZero(String* str) // Format รูปแบบ
+void addZeroTo6Bit(String* str) // Format รูปแบบ
 {
   int sizeStr = str->length();
   String preset = "";
@@ -531,7 +535,7 @@ void clearInFrame()
   for (int i = 0; i < receiveFullFrameSize; i++) test[i] = 0;
 }
 
-String convertToInt(String str) // Format รูปแบบ
+String convertToString(String str) // Format รูปแบบ
 {
   String firstPart = "";
   String secPart = "";
@@ -543,13 +547,13 @@ String convertToInt(String str) // Format รูปแบบ
 
   for (int c = 8; c < 12; c++) thirdPart += str[c];
 
-  String total = strToInt(firstPart) + strToInt(secPart) + strToInt(thirdPart);
+  String total = strFormat(firstPart) + strFormat(secPart) + strFormat(thirdPart);
 
   return total;
 
 }
 
-String strToInt(String colorCode) // Format รูปแบบ
+String strFormat(String colorCode) // Format รูปแบบ
 {
   String tempData = "";
 

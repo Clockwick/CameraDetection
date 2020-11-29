@@ -242,24 +242,37 @@ void checkFrame()
   {
     int inFrameType = inFrame >> 10; // 
     if (inFrameType == UFrame)
-    {
-       
-      sendFrame(false, false); // ส่ง ack ตอบกลับ
-
+    {      
       int cmd = (inFrame >> 5) & B11111;
+
+      /*
+       * ตอบกลับด้วย U-Frame 
+       * data = 0x1000 หมายถึงตอบรับเมื่อได้รับคำสั่งว่า ต้องการเริ่มต้นการเชื่อมต่อ
+       * data = 0x1800 หมายถึงตอบรับเมื่อได้รับคำสั่งว่า ต้องการเริ่มต้นการเชื่อมต่อใหม่ทั้งหมด
+       * data = 0x1c00 หมายถึงตอบรับเมื่อได้รับคำสั่งว่า ต้องการสิ้นสุดการเชื่อมต่อทั้งหมด
       
+      */
       
       if (cmd == B00110) // ถ้าได้รับคำสั่งให้เชื่อมต่อ
       {
+        type = 'U';
+        data = 0x1000; 
+        sendFrame(true, false);
         Serial.println("Waiting for PC1 command ...");
       }
       else if (cmd == B00001) // ถ้าได้รับคำสั่งให้เริ่มทำงานใหม่ตั้งแต่ต้น
       {
+        type = 'U';
+        data = 0x1800;
+        sendFrame(true, false);
         Serial.println(" ---- Restart ---- ");
         flushData();
       }
       else if (cmd == B00111) // ถ้าได้รับคำสั่งที่ให้สิ้นสุดการทำงาน
-      {
+      { 
+        type = 'U';
+        data = 0x1c00;
+        sendFrame(true, false);
         Serial.println("---- End ----");
         Serial.print(3); // ส่งไปบอกส่วน Camera ให้หยุดการทำงาน
       }
@@ -297,7 +310,7 @@ void analysis(int inCode)
 {
   mode = PIXEL_MODE;
   code = String(inCode, BIN);
-  addZero(&code);
+  addZeroTo4Bit(&code);
   Serial.println(" - - Pixel mode - - ");
   //  prepareAnalysis();
   Serial.print(code); // วิเคราะห์ข้อมูลของรหัสภาพ (ส่งไปที่ python)
@@ -440,7 +453,7 @@ String strTo4Bit(String str) // Format รูปแบบ
   {
     int strInt = String(str[i]).toInt();
     String strBinary = String(strInt, BIN);
-    addZero(&strBinary);
+    addZeroTo4Bit(&strBinary);
     full += strBinary;
   }
   return full;
@@ -596,7 +609,7 @@ void makeFrame()
     U-Frame = [   100    |  00000...(13ตัว) | 00000]
                 Type         cmd             CRC
     S-Frame = [   111    |     1000...(12ตัว)     |   0  | 00000 ]
-               Type             cmd               ackNo   CRC
+               Type             data               ackNo   CRC
     I-Frame = [   110   | 110011...(12ตัว) |    0   | 00000 ]
                Type            Data         FrameNo    CRC
   */
@@ -730,7 +743,7 @@ void sendFrame(bool isFrame, bool special)
   dac.setVoltage(0, false);
 }
 
-void addZero(String * str) // Format รูปแบบ
+void addZeroTo4Bit(String * str) // Format รูปแบบ
 {
   int sizeStr = str->length();
   String preset = "";
@@ -741,7 +754,8 @@ void addZero(String * str) // Format รูปแบบ
   *str = preset + *str;
 }
 
-void addZeroTo12Bit(String * str) // Format รูปแบบ
+
+ // Format รูปแบบ
 {
   int sizeStr = str->length();
   String preset = "";
