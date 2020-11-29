@@ -21,9 +21,9 @@ class datareadcam:
             print("openport")
     def waitfordata(self, index=0):
         if index < len(self.COMMAND):
-            a = self.readdata()
-            a = chr(a)
-            if self.COMMAND[index] == a:
+            c1 = self.readdata()
+            c1 = chr(c1)
+            if self.COMMAND[index] == c1:
                 return self.waitfordata(index + 1)
             else:
                 return False
@@ -36,12 +36,12 @@ class datareadcam:
     def mapdata(self):
         while not self.waitfordata():
             pass
-        img_arr = np.zeros([self.Hight1, self.Width1, 1], dtype=np.uint8)
-        for x in range(img_arr.shape[1]):
-            for y in range(img_arr.shape[0]):
+        img = np.zeros([self.Hight1, self.Width1, 1], dtype=np.uint8)
+        for x in range(img.shape[1]):
+            for y in range(img.shape[0]):
                 temp = self.readdata()
-                img_arr[y, self.Width1 - x - 1] = [temp]
-        return img_arr
+                img[y, self.Width1 - x - 1] = [temp]
+        return img
     def saveimg(self,img,index1):
         if img is not None:
             print(index1)
@@ -95,61 +95,57 @@ class datareadcam:
                 image[py[i],px[t+2]]=250
                 image[py[i+2],px[t]]=250
                 image[py[i+2],px[t+2]]=250
-        # cv2.namedWindow('image',cv2.WINDOW_AUTOSIZE)
-        # cv2.imshow('pp', image)
-        # cv2.waitKey()
         Q1.append(int(Q1[0]+Q1[1]+Q1[2]+Q1[3])//4)
         Q2.append(int(Q2[0]+Q2[1]+Q2[2]+Q2[3])//4)
         Q3.append(int(Q3[0]+Q3[1]+Q3[2]+Q3[3])//4)
         Q4.append(int(Q4[0]+Q4[1]+Q4[2]+Q4[3])//4)
+        py.append(400)
+        px.append(400)    
+        for i in range(len(py)):
+            py[i]=str(int(py[i])+500)
+            px[i]=str(int(px[i])+500)
+        s=''
+        s1="1"
+        for i in range(len(Q1)):
+            s1+=str(int(Q1[i])+500)
+        for i in range(len(Q2)):
+            s1+=str(int(Q2[i])+500)
+        for i in range(len(Q3)):
+            s1+=str(int(Q3[i])+500)
+        for i in range(len(Q4)):
+            s1+=str(int(Q4[i])+500)
+        for i in range(len(py)):
+            s1+=str(py[i])
+        for i in range(len(px)):
+            s1+=str(px[i])
         print(Q1)
         print(Q2)
         print(Q3)
         print(Q4)
-        s=''
-        s1=""
-        for i in range(len(Q1)):
-            s1+=str(Q1[i])
-            s1+=","
-        for i in range(len(Q2)):
-            s1+=str(Q2[i])
-            s1+=","
-        for i in range(len(Q3)):
-            s1+=str(Q3[i])
-            s1+=","
-        for i in range(len(Q4)):
-            s1+=str(Q4[i])
-            s1+=","
-        s1+=str("Y,")
-        for i in range(len(py)):
-            s1+=str(py[i])
-            s1+=","
-        s1+=str("X,")
-        for i in range(len(px)):
-            s1+=str(px[i])
-            s1+=","
-        # f=(Q1[-1]+Q2[-1]+Q3[-1]+Q4[-1])//4
+        print(py)
+        print(px)
         if(st==0):
-            f=90
+            f=50
         else:
             f=50
-        if(Q1[4]>=f):
+        if(int(Q1[4])>=f):
             s+="1"
         else:
              s+="0"
-        if(Q2[4]>=f):
+        if(int(Q2[4])>=f):
+            s+="1"
+        else:
+            
+             s+="0"
+        if(int(Q3[4])>=f):
             s+="1"
         else:
              s+="0"
-        if(Q3[4]>=f):
+        if(int(Q4[4])>=f):
             s+="1"
         else:
              s+="0"
-        if(Q4[4]>=f):
-            s+="1"
-        else:
-             s+="0"
-        print(s)
+        print(s)    
         if(p==0):
             return s
         else:
@@ -162,9 +158,6 @@ class datareadcam:
             dataQ11.append(int(image[120,i+30]))
             image[120,i+50]=250
         dataQ11.sort()
-        # cv2.namedWindow('image',cv2.WINDOW_AUTOSIZE)
-        # cv2.imshow('pp', image)
-        # cv2.waitKey()
         if(abs(dataQ11[0]-dataQ11[-1]) > 13 ) :
             return False
         else:
@@ -175,7 +168,6 @@ class datareadcam:
             print(filename)
             img = cv2.imread(filename)
             gray = cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
-                # find Harris corners
             gray = np.float32(gray)
             dst = cv2.cornerHarris(gray,2,3,0.04)
             dst = cv2.dilate(dst,None)
@@ -189,11 +181,11 @@ class datareadcam:
             y1=res[:,1]
             x1=res[:,0]
             v1=[]
-            v2=[]
+            v2=[] 
             for i in range(len(y1)):
                 for b in range(len(y1)):
-                    if(y1[i] <= 300 and y1[i] > 15 and abs(y1[i]-y1[b])>=195 and abs(y1[i]-y1[b])<=230):
-                        if(abs(x1[i]-x1[b])>=195 and abs(x1[i]-x1[b])<= 235 ):
+                    if(y1[i] <= 300 and y1[i] > 15 and abs(y1[i]-y1[b])>=185 and abs(y1[i]-y1[b])<=220):
+                        if(abs(x1[i]-x1[b])>=185 and abs(x1[i]-x1[b])<= 220 ):
                             if(y1[i]<y1[b]):
                                 v1.append(y1[i])
                                 v1.append(x1[i])
@@ -209,11 +201,6 @@ class datareadcam:
                     break
             e1=[v1,v2,name1]
             print(v1,v2)
-                # img[v1[0],v1[1]]=[0,0,255]
-                # img[v2[0],v2[1]] = [0,255,0]
-                # cv2.imshow('dst',img)
-                # if cv2.waitKey(0) & 0xff == 27:
-                #     cv2.destroyAllWindows()
         else:
             return False
         if(len(v1)==0):
@@ -252,7 +239,7 @@ class datareadcam:
         return c1
 #setting port 
 c=datareadcam('COM3',1000000,320,240)
-c2=datareadcam('COM6',9600,320,240)
+c2=datareadcam('COM11',115200,320,240)
 c2.opendport()
 c.opendport()
 # variable
@@ -261,31 +248,21 @@ i1=["A","B","C"]
 senb1=""
 senb2=""
 senb3=""
-#star program 
+#start program 
 while True:
-    #input of aduino pc 1
-    #mode 1 3 scan 
-    # n1=int.from_bytes(ark1, "big") 
-    # print(n1)
     ark1=c2.serialcomm.readline()
     i=ark1.decode('ascii')
     print(i)
-    ark2="stop"
     vv=0
-    # i = input("Enter Input: ")
     try:
         if(i=="g"):
-            # c2.serialcomm.write(i1[0].encode())
-            # time.sleep(0.5)
             vv=1
             print("mode 1 : 3 scan :")
             v1,v2,v3=[],[],[]
-            for z in range(len(i1)):  
+            for z in range(len(i1)): 
                 c2.serialcomm.write(i1[z].encode())
                 time.sleep(0.5)
-                # ark1=c2.serialcomm.readline()
-                # v=int(ark1.decode('ascii'))
-                # print(v)
+                #rotate -45
                 if(z==0):
                     time.sleep(0.5)
                     c.scanca(0)
@@ -294,7 +271,7 @@ while True:
                         if(e1 != False):
                             break
                     send1=c.readphoto2(e1,0,st)
-                    
+                #rotate 0
                 if(z==1):
                     time.sleep(0.5)
                     c.scanca(7)
@@ -302,9 +279,8 @@ while True:
                         e1=c.crop(13-i)
                         if(e1 != False):
                             break
-                    
                     send2=c.readphoto2(e1,0,st)
-
+                #rotate 45
                 if(z==2):
                     time.sleep(0.5)
                     c.scanca(14)
@@ -313,60 +289,63 @@ while True:
                         if(e1 != False):
                             break
                     send3=c.readphoto2(e1,0,st)
-                    
                 st+=1
-            c2.serialcomm.write(i1[0].encode())
-            time.sleep(0.5)
-            sendreal= send1+"R,"+send2+"c,"+send3+"L"
+            # send data
+            time.sleep(2);
+            sendreal = "1"+send3+"L,"+ send2+"C,"+send1+"R,/"
             c2.serialcomm.write(sendreal.encode())
             time.sleep(0.5)
-            # c2.serialcomm.write(i1[0].encode())
-            # print(sendreal)
-        
-        #rotation -45
+            print(sendreal)
+        #rotate -45
         elif(i==send1):
             vv=1
             print("mode 2 : 1 scan 1 Select right")
             c2.serialcomm.write(i1[0].encode())
-            time.sleep(2)
+            time.sleep(0.5)
             c.scanca(0)
             for i in range(7):
                 e1=c.crop(6-i)
                 if(e1 != False):
                     break
             sendR,send1=c.readphoto2(e1,1,st)
-            c2.serialcomm.write(sendR.encode())
-            time.sleep(0.5)
+            # send data
+            c2.serialcomm.write((sendR[0:46]+",").encode())
+            time.sleep(3)
+            c2.serialcomm.write(("1"+sendR[46:-1]+",").encode())
             print(sendR)
-        #rotation 0
+        #rotate 0
         elif(i==send2):
             vv=1
             print("mode 2 : 1 scan 1 Select Center ")
             c2.serialcomm.write(i1[1].encode())
-            time.sleep(2)
+            time.sleep(0.5)
             c.scanca(7)
             for i in range(7):
                 e1=c.crop(13-i)
                 if(e1 != False):
                     break
             sendC,send2=c.readphoto2(e1,1,st)
-            c2.serialcomm.write(sendC.encode())
-            time.sleep(0.5)
+            # send data
+            c2.serialcomm.write((sendC[0:46]+",").encode())
+            time.sleep(3)
+            c2.serialcomm.write(("1"+sendC[46:-1]+",").encode())
             print(sendC)
-        #rotation 45
+        #rotate 45
         elif(i==send3):
             vv=1
             print("mode 2 : 1 scan 1 Select Left")
             c2.serialcomm.write(i1[2].encode())
-            time.sleep(2)
+            time.sleep(0.5)
             c.scanca(14)
             for i in range(7):
                 e1=c.crop(20-i)
                 if(e1 != False):
                     break
             sendL,send3=c.readphoto2(e1,1,st)
-            c2.serialcomm.write(sendL.encode())
-            time.sleep(0.5)
+            # send data
+            c2.serialcomm.write((sendL[0:46]+",").encode())
+            time.sleep(3)
+            c2.serialcomm.write(("1"+sendL[46:-1]+",").encode())
             print(sendL)
         # out
         if i == "3":
@@ -374,8 +353,8 @@ while True:
             break
     except:
         if(vv==1):
-            print(" rephoto ")
-            a="rephoto"
+            print(" re photo ")
+            a="re photo"
             c2.serialcomm.write(a.encode())
 c.serialcomm.close()
     
